@@ -1,7 +1,14 @@
+import os
+from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_community.vectorstores import Chroma
 
 def process_pdf():
+    # Load environment variables from .env file
+    load_dotenv()
+
     # Define the path to the PDF file
     file_path = "data/Valve_NewEmployeeHandbook.pdf"
 
@@ -26,8 +33,17 @@ def process_pdf():
         # Split the documents into chunks
         chunks = text_splitter.split_documents(pages)
 
-        # Print the total number of chunks created
-        print(f"Total number of chunks created: {len(chunks)}")
+        # Initialize Google Generative AI Embeddings
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
+
+        # Create and persist the chunks in a local Chroma vector store
+        vectorstore = Chroma.from_documents(
+            documents=chunks,
+            embedding=embeddings,
+            persist_directory="./valve_db"
+        )
+
+        print(f"Successfully created and stored {len(chunks)} chunks in 'valve_db'.")
         
     except FileNotFoundError:
         print(f"Error: The file at {file_path} was not found.")
