@@ -2,7 +2,7 @@ import sys
 import os
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-import google.generativeai as genai
+from google import genai
 
 def run_diagnostics(db_path="./valve_db"):
     """
@@ -41,10 +41,10 @@ def run_diagnostics(db_path="./valve_db"):
 
     print("\n--- 3. Listing All Models Available to your API Key ---")
     try:
-        genai.configure(api_key=api_key)
-        for m in genai.list_models():
-            methods = ", ".join(m.supported_generation_methods)
-            print(f"Model: {m.name} | Methods: [{methods}]")
+        client = genai.Client(api_key=api_key)
+        for m in client.models.list():
+            actions = ", ".join(m.supported_actions) if m.supported_actions else "N/A"
+            print(f"Model: {m.name} | Actions: [{actions}]")
     except Exception as e:
         print(f"FAILURE: Could not retrieve model list: {e}")
 

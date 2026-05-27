@@ -74,7 +74,6 @@ qa_prompt = ChatPromptTemplate.from_messages([
 
 # Sub-chain for history-aware retrieval
 history_aware_retriever_standalone = contextualize_q_prompt | llm | StrOutputParser()
-history_aware_retriever_chain = history_aware_retriever_standalone | retriever
 
 # 2. Define Nodes
 def retrieve(state: GraphState) -> GraphState:
