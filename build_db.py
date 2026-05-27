@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 
 def process_pdf():
     # Load environment variables from .env file
@@ -32,18 +32,39 @@ def process_pdf():
 
         # Split the documents into chunks
         chunks = text_splitter.split_documents(pages)
+        print(f"Total chunks created: {len(chunks)}")
+
+        # Clean and filter chunks: Remove null bytes and empty strings
+        for chunk in chunks:
+            chunk.page_content = chunk.page_content.replace("\x00", "")
+        
+        chunks = [c for c in chunks if c.page_content.strip()]
+        
+        if not chunks:
+            print("Error: No chunks were created. Verify the PDF content is readable.")
+            return
 
         # Initialize Google Generative AI Embeddings
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
-
-        # Create and persist the chunks in a local Chroma vector store
-        vectorstore = Chroma.from_documents(
-            documents=chunks,
-            embedding=embeddings,
-            persist_directory="./valve_db"
+        embeddings = GoogleGenerativeAIEmbeddings(
+            model="models/gemini-embedding-2",
+            task_type="retrieval_document"
         )
 
-        print(f"Successfully created and stored {len(chunks)} chunks in 'valve_db'.")
+        # Initialize Chroma and add documents in smaller batches
+        # This prevents 'list index out of range' errors caused by API batch limits or safety filters
+        vectorstore = Chroma(
+            embedding_function=embeddings,
+            persist_directory="./valve_db"
+        )
+        
+        batch_size = 1
+        for i in range(0, len(chunks), batch_size):
+            current_batch = chunks[i:i + batch_size]
+            print(f"Processing batch {(i // batch_size) + 1}...")
+            vectorstore.add_documents(current_batch)
+        
+        # Verify count from the actual persistent collection
+        print(f"Successfully stored {vectorstore._collection.count()} documents in 'valve_db'.")
         
     except FileNotFoundError:
         print(f"Error: The file at {file_path} was not found.")
