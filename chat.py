@@ -34,22 +34,15 @@ load_dotenv()
 if not os.getenv("GOOGLE_API_KEY"):
     raise ValueError("Error: GOOGLE_API_KEY not found in environment variables.")
 
-# Updated embedding model based on your available models list
 embeddings = GoogleGenerativeAIEmbeddings(
     model="models/gemini-embedding-2",
     task_type="retrieval_query"
 )
+
 vectorstore = Chroma(
     persist_directory="./valve_db",
     embedding_function=embeddings
 )
-
-# Diagnostic: Ensure the vectorstore actually contains data
-doc_count = vectorstore._collection.count()
-print(f"--- DEBUG: Vectorstore loaded with {doc_count} documents. ---")
-if doc_count == 0:
-    print("WARNING: Vectorstore is empty. Please run build_db.py and verify it outputs a document count > 0.")
-
 llm = ChatGoogleGenerativeAI(model="gemini-flash-latest", temperature=0)
 retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
 
@@ -89,22 +82,15 @@ def retrieve(state: GraphState) -> GraphState:
     Retrieves documents based on the latest user question,
     potentially reformulating it using chat history.
     """
-    print("---RETRIEVE NODE---")
     messages = state["messages"]
     last_message = messages[-1] # This should be the HumanMessage
-    
-    # The history_aware_retriever_chain expects 'input' (current question)
-    # and 'chat_history' (list of previous messages).
-    print(f"--- DEBUG: Original Input: {last_message.content}")
     
     standalone_question = history_aware_retriever_standalone.invoke({
         "input": last_message.content,
         "chat_history": messages[:-1]
     })
-    print(f"--- DEBUG: Standalone Question: {standalone_question}")
 
     retrieved_documents = retriever.invoke(standalone_question)
-    print(f"--- DEBUG: Retrieved {len(retrieved_documents)} documents.")
     
     # Format the retrieved documents into a single string
     formatted_context = format_docs(retrieved_documents)
@@ -113,19 +99,13 @@ def retrieve(state: GraphState) -> GraphState:
     return {"context": formatted_context}
 
 def generate(state: GraphState) -> GraphState:
-    print("---GENERATE NODE---")
+    """Generates an answer based on the retrieved context and chat history."""
     messages = state["messages"]
     context = state["context"]
-    
-    # The last message is the current user input.
     current_question = messages[-1].content
-    
-    # The chat history for the QA prompt should include previous messages.
-    # `messages[:-1]` contains the history before the current question.
     
     answer_chain = qa_prompt | llm | StrOutputParser()
     
-    print("---DEBUG: Generating response with LLM...")
     response_content = answer_chain.invoke({
         "context": context,
         "chat_history": messages[:-1], # Previous messages
@@ -137,6 +117,12 @@ def generate(state: GraphState) -> GraphState:
     return {"messages": [AIMessage(content=response_content)]}
 
 def main():
+    # Initial startup check
+    doc_count = vectorstore._collection.count()
+    if doc_count == 0:
+        print("Error: Vectorstore is empty. Please run build_db.py before starting the chat.")
+        return
+
     workflow = StateGraph(GraphState)
 
     workflow.add_node("retrieve", retrieve)
@@ -146,13 +132,11 @@ def main():
     workflow.add_edge("retrieve", "generate")
     workflow.add_edge("generate", END)
 
-    # 4. Compile the graph with MemorySaver
     memory = MemorySaver()
     app = workflow.compile(checkpointer=memory)
 
     print("Valve Handbook Chatbot with LangGraph Memory is ready! (Type 'exit' to quit)")
     
-    # Use a fixed session ID for simplicity in this example
     session_id = "user_session_1" 
 
     while True:
@@ -162,16 +146,11 @@ def main():
             break
         
         try:
-            # Invoke the graph with the current user message
-            # The `messages` key in the input state will be merged with the existing state
-            # from the checkpointer.
             final_state = app.invoke(
                 {"messages": [HumanMessage(content=user_input)]},
                 config={"configurable": {"thread_id": session_id}}
             )
             
-            # The final state's messages list will contain all messages,
-            # including the AI's latest response.
             ai_response = final_state["messages"][-1].content
             print(f"\nAI: {ai_response}")
             
