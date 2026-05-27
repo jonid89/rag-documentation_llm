@@ -1,4 +1,5 @@
 import os
+import shutil
 from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -11,34 +12,32 @@ def process_pdf():
 
     # Define the path to the PDF file
     file_path = "data/Valve_NewEmployeeHandbook.pdf"
+    db_path = "./valve_db"
+
+    # Clean existing database directory to ensure a fresh build
+    if os.path.exists(db_path):
+        print(f"Cleaning existing database at {db_path}...")
+        shutil.rmtree(db_path)
 
     try:
-        # Initialize the PyPDFLoader
+        print(f"Loading PDF from: {file_path}")
         loader = PyPDFLoader(file_path)
-        
-        # Load the document
-        # loader.load() returns a list of Document objects (one per page)
         pages = loader.load()
         
-        # Initialize the RecursiveCharacterTextSplitter
-        # This splitter is recommended for generic text as it tries to keep 
-        # paragraphs, sentences, and words together as much as possible.
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
-            chunk_overlap=200,
-            length_function=len,
-            is_separator_regex=False,
+            chunk_overlap=200
         )
 
-        # Split the documents into chunks
         chunks = text_splitter.split_documents(pages)
-        print(f"Total chunks created: {len(chunks)}")
 
-        # Clean and filter chunks: Remove null bytes and empty strings
+        # Sanitize chunk content: Remove null bytes and filter empty strings
+        # This prevents errors in the Google Embedding API mapping
         for chunk in chunks:
             chunk.page_content = chunk.page_content.replace("\x00", "")
-        
         chunks = [c for c in chunks if c.page_content.strip()]
+        
+        print(f"Total valid chunks to process: {len(chunks)}")
         
         if not chunks:
             print("Error: No chunks were created. Verify the PDF content is readable.")
@@ -50,21 +49,20 @@ def process_pdf():
             task_type="retrieval_document"
         )
 
-        # Initialize Chroma and add documents in smaller batches
-        # This prevents 'list index out of range' errors caused by API batch limits or safety filters
         vectorstore = Chroma(
             embedding_function=embeddings,
-            persist_directory="./valve_db"
+            persist_directory=db_path
         )
         
+        # batch_size=1 is used to mitigate 'list index out of range' errors 
+        # in the langchain-google-genai batch embedding implementation.
         batch_size = 1
+        print(f"Storing documents in batches of {batch_size}...")
         for i in range(0, len(chunks), batch_size):
-            current_batch = chunks[i:i + batch_size]
-            print(f"Processing batch {(i // batch_size) + 1}...")
-            vectorstore.add_documents(current_batch)
+            vectorstore.add_documents(chunks[i:i + batch_size])
         
-        # Verify count from the actual persistent collection
-        print(f"Successfully stored {vectorstore._collection.count()} documents in 'valve_db'.")
+        final_count = vectorstore._collection.count()
+        print(f"Successfully stored {final_count} documents in '{db_path}'.")
         
     except FileNotFoundError:
         print(f"Error: The file at {file_path} was not found.")
