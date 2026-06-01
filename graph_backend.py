@@ -1,4 +1,5 @@
 import os
+import streamlit as st
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
@@ -31,19 +32,39 @@ def format_docs(docs):
 # Global initializations (or within main)
 # It's better to initialize these once.
 load_dotenv()
-if not os.getenv("GOOGLE_API_KEY"):
-    raise ValueError("Error: GOOGLE_API_KEY not found in environment variables.")
+
+def get_sanitized_api_key():
+    """Fetch API key from Streamlit secrets or environment and sanitize it."""
+    key = None
+    # Try Streamlit secrets first
+    try:
+        if "GOOGLE_API_KEY" in st.secrets:
+            key = st.secrets["GOOGLE_API_KEY"]
+    except Exception:
+        pass
+    
+    # Fallback to environment variables
+    if not key:
+        key = os.getenv("GOOGLE_API_KEY")
+        
+    if not key:
+        raise ValueError("GOOGLE_API_KEY not found in Streamlit secrets or environment variables.")
+    
+    return key.strip().strip('"').strip("'")
+
+api_key = get_sanitized_api_key()
 
 embeddings = GoogleGenerativeAIEmbeddings(
     model="models/gemini-embedding-2",
-    task_type="retrieval_query"
+    task_type="retrieval_query",
+    google_api_key=api_key
 )
 
 vectorstore = Chroma(
     persist_directory="./valve_db",
     embedding_function=embeddings
 )
-llm = ChatGoogleGenerativeAI(model="gemini-flash-latest", temperature=0)
+llm = ChatGoogleGenerativeAI(model="gemini-flash-latest", temperature=0, google_api_key=api_key)
 retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
 
 # Prompts

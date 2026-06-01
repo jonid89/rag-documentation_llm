@@ -1,5 +1,6 @@
 import os
 import shutil
+import streamlit as st
 from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -71,11 +72,26 @@ def process_pdf():
         if not chunks:
             print("Error: No chunks were created. Verify the PDF content is readable.")
             return
+            
+        # Sanitize API Key
+        raw_key = os.getenv("GOOGLE_API_KEY")
+        try:
+            if not raw_key and "GOOGLE_API_KEY" in st.secrets:
+                raw_key = st.secrets["GOOGLE_API_KEY"]
+        except Exception:
+            pass
+            
+        if not raw_key:
+            print("Error: GOOGLE_API_KEY not found.")
+            return
+            
+        api_key = raw_key.strip().strip('"').strip("'")
 
         # Initialize Google Generative AI Embeddings
         embeddings = GoogleGenerativeAIEmbeddings(
             model="models/gemini-embedding-2",
-            task_type="retrieval_document"
+            task_type="retrieval_document",
+            google_api_key=api_key
         )
 
         vectorstore = Chroma(
