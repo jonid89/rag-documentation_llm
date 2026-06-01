@@ -115,46 +115,27 @@ def generate(state: GraphState) -> GraphState:
     # LangGraph's state updates are additive for lists.
     return {"messages": [AIMessage(content=response_content)]}
 
-def main():
-    # Initial startup check
-    doc_count = vectorstore._collection.count()
-    if doc_count == 0:
-        print("Error: Vectorstore is empty. Please run build_db.py before starting the chat.")
-        return
+workflow = StateGraph(GraphState)
+workflow.add_node("retrieve", retrieve)
+workflow.add_node("generate", generate)
+workflow.set_entry_point("retrieve")
+workflow.add_edge("retrieve", "generate")
+workflow.add_edge("generate", END)
 
-    workflow = StateGraph(GraphState)
+memory = MemorySaver()
+rag_app = workflow.compile(checkpointer=memory)
 
-    workflow.add_node("retrieve", retrieve)
-    workflow.add_node("generate", generate)
-
-    workflow.set_entry_point("retrieve")
-    workflow.add_edge("retrieve", "generate")
-    workflow.add_edge("generate", END)
-
-    memory = MemorySaver()
-    app = workflow.compile(checkpointer=memory)
-
-    print("Valve Handbook Chatbot with LangGraph Memory is ready! (Type 'exit' to quit)")
-    
-    session_id = "user_session_1" 
-
-    while True:
-        user_input = input("\nYou: ")
-        if user_input.lower() in ["exit", "quit", "q"]:
-            print("Goodbye!")
-            break
-        
-        try:
-            final_state = app.invoke(
-                {"messages": [HumanMessage(content=user_input)]},
-                config={"configurable": {"thread_id": session_id}}
-            )
-            
-            ai_response = final_state["messages"][-1].content
-            print(f"\nAI: {ai_response}")
-            
-        except Exception as e:
-            print(f"An error occurred: {e}")
-
-if __name__ == "__main__":
-    main()
+def get_chatbot_response(user_input: str, thread_id: str = "default_session") -> str:
+    """
+    Invocates the LangGraph application with a user message 
+    and returns the final AI response string.
+    """
+    try:
+        final_state = rag_app.invoke(
+            {"messages": [HumanMessage(content=user_input)]},
+            config={"configurable": {"thread_id": thread_id}}
+        )
+        # Extract and return the last message content
+        return final_state["messages"][-1].content
+    except Exception as e:
+        return f"An error occurred in the graph backend: {e}"
