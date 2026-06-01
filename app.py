@@ -2,10 +2,8 @@ import streamlit as st
 import os
 import uuid
 import shutil
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_chroma import Chroma
 from graph_backend import get_chatbot_response, embeddings, vectorstore
+from build_db import update_vectorstore_from_pdf
 
 # 1. Page Configuration
 st.set_page_config(page_title="Valve Handbook RAG Chatbot", layout="wide")
@@ -38,27 +36,9 @@ with st.sidebar:
                 # Rebuild database logic
                 db_path = "./valve_db"
                 try:
-                    # Clear existing documents without destroying the collection initialization
-                    existing_data = vectorstore.get()
-                    if existing_data["ids"]:
-                        vectorstore.delete(ids=existing_data["ids"])
-
-                    loader = PyPDFLoader(file_path)
-                    pages = loader.load()
+                    num_chunks = update_vectorstore_from_pdf(file_path, vectorstore)
                     
-                    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-                    chunks = text_splitter.split_documents(pages)
-                    
-                    # Sanitize null bytes
-                    for chunk in chunks:
-                        chunk.page_content = chunk.page_content.replace("\x00", "")
-                    chunks = [c for c in chunks if c.page_content.strip()]
-                    
-                    # Batch processing
-                    for i in range(0, len(chunks), 1):
-                        vectorstore.add_documents(chunks[i:i + 1])
-                    
-                    st.success(f"Successfully processed {len(chunks)} chunks from '{uploaded_file.name}'!")
+                    st.success(f"Successfully processed {num_chunks} chunks from '{uploaded_file.name}'!")
                     # Clear chat history for the new document context
                     st.session_state.messages = []
                     st.session_state.thread_id = str(uuid.uuid4())

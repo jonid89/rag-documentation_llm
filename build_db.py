@@ -6,6 +6,35 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
 
+def update_vectorstore_from_pdf(file_path, vectorstore):
+    """
+    Loads a PDF, splits it into chunks, sanitizes content, 
+    clears existing documents, and adds the new ones to the shared vectorstore.
+    """
+    # 1. Clear existing documents without destroying the collection initialization
+    existing_data = vectorstore.get()
+    if existing_data["ids"]:
+        vectorstore.delete(ids=existing_data["ids"])
+
+    # 2. Load and split
+    loader = PyPDFLoader(file_path)
+    pages = loader.load()
+    
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    chunks = text_splitter.split_documents(pages)
+    
+    # 3. Sanitize null bytes and filter empty strings
+    for chunk in chunks:
+        chunk.page_content = chunk.page_content.replace("\x00", "")
+    chunks = [c for c in chunks if c.page_content.strip()]
+    
+    # 4. Batch processing (size=1 for stability with some providers)
+    if chunks:
+        for i in range(0, len(chunks), 1):
+            vectorstore.add_documents(chunks[i:i + 1])
+    
+    return len(chunks)
+
 def process_pdf():
     # Load environment variables from .env file
     load_dotenv()
