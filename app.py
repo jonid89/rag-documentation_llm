@@ -5,7 +5,7 @@ import shutil
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
-from graph_backend import get_chatbot_response, embeddings
+from graph_backend import get_chatbot_response, embeddings, vectorstore
 
 # 1. Page Configuration
 st.set_page_config(page_title="Valve Handbook RAG Chatbot", layout="wide")
@@ -37,10 +37,12 @@ with st.sidebar:
                 
                 # Rebuild database logic
                 db_path = "./valve_db"
-                if os.path.exists(db_path):
-                    shutil.rmtree(db_path)
-                
                 try:
+                    # Clear existing documents without destroying the collection initialization
+                    existing_data = vectorstore.get()
+                    if existing_data["ids"]:
+                        vectorstore.delete(ids=existing_data["ids"])
+
                     loader = PyPDFLoader(file_path)
                     pages = loader.load()
                     
@@ -51,8 +53,6 @@ with st.sidebar:
                     for chunk in chunks:
                         chunk.page_content = chunk.page_content.replace("\x00", "")
                     chunks = [c for c in chunks if c.page_content.strip()]
-                    
-                    vectorstore = Chroma(embedding_function=embeddings, persist_directory=db_path)
                     
                     # Batch processing
                     for i in range(0, len(chunks), 1):
