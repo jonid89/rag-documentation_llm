@@ -35,25 +35,23 @@ load_dotenv()
 
 def get_sanitized_api_key():
     """Fetch API key from Streamlit secrets or environment and sanitize it."""
-    key = None
-    # Try Streamlit secrets first
-    try:
-        if "GOOGLE_API_KEY" in st.secrets:
-            key = st.secrets["GOOGLE_API_KEY"]
-    except Exception:
-        pass
+    # Streamlit secrets usually take precedence in production
+    key = st.secrets.get("GOOGLE_API_KEY")
     
-    # Fallback to environment variables
+    # Fallback to .env for local development
     if not key:
         key = os.getenv("GOOGLE_API_KEY")
         
     if not key:
-        raise ValueError("GOOGLE_API_KEY not found in Streamlit secrets or environment variables.")
+        raise ValueError("GOOGLE_API_KEY is missing. Please set it in .env or Streamlit Secrets.")
     
-    return key.strip().strip('"').strip("'")
+    # Remove whitespace, quotes, and hidden carriage returns
+    return str(key).strip().replace('"', '').replace("'", "").replace('\r', '')
 
 api_key = get_sanitized_api_key()
 
+# For the backend, we use retrieval_query because its main job is to 
+# embed user questions for the retriever.
 embeddings = GoogleGenerativeAIEmbeddings(
     model="models/gemini-embedding-2",
     task_type="retrieval_query",

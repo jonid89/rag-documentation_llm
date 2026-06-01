@@ -1,17 +1,30 @@
 import os
 import shutil
 import streamlit as st
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
 
 def update_vectorstore_from_pdf(file_path, vectorstore):
     """
     Loads a PDF, splits it into chunks, sanitizes content, 
-    clears existing documents, and adds the new ones to the shared vectorstore.
+    clears existing documents, and adds the new ones.
     """
+    # Ensure we use the document task type for ingestion
+    # We extract the API key from the existing embedding object to keep it consistent
+    api_key = vectorstore.embeddings.google_api_key
+    ingestion_embeddings = GoogleGenerativeAIEmbeddings(
+        model="models/gemini-embedding-2",
+        task_type="retrieval_document",
+        google_api_key=api_key
+    )
+    
+    # Update the vectorstore's embedding function temporarily for ingestion
+    original_embeddings = vectorstore.embeddings
+    vectorstore.embeddings = ingestion_embeddings
+
     # 1. Clear existing documents without destroying the collection initialization
     existing_data = vectorstore.get()
     if existing_data["ids"]:
@@ -33,6 +46,9 @@ def update_vectorstore_from_pdf(file_path, vectorstore):
     if chunks:
         for i in range(0, len(chunks), 1):
             vectorstore.add_documents(chunks[i:i + 1])
+            
+    # Restore the original (query-optimized) embeddings for the chatbot
+    vectorstore.embeddings = original_embeddings
     
     return len(chunks)
 
