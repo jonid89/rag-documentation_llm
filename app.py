@@ -9,7 +9,7 @@ from langchain_chroma import Chroma
 
 # 1. Page Configuration
 st.set_page_config(page_title="Valve Handbook RAG Chatbot", layout="wide")
-st.title("� Ask the Chatbot")
+st.title("💬 Ask the Chatbot")
 st.write("Ask questions about your document. You can upload a PDF to build/rebuild the knowledge base, or chat with the existing database.")
 
 # 1.5. Startup Cleanup
@@ -104,6 +104,12 @@ with st.sidebar:
         index=list(MODEL_REGISTRY.keys()).index(st.session_state.selected_model),
         help="Select which Gemini model to use for responses"
     )
+
+    st.divider()
+    
+    # Portfolio / GitHub Links
+    st.subheader("🔗 Links")
+    st.markdown("[⭐ View Source on GitHub](https://github.com/jonid89/rag-documentation_llm)")
 
 # 4. Display Chat History
 for message in st.session_state.messages:
