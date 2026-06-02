@@ -2,11 +2,71 @@ import os
 import shutil
 import streamlit as st
 import tempfile
+import time
+from datetime import datetime, timedelta
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
+
+def get_user_temp_db_path(thread_id):
+    """
+    Returns the path to a user-specific temporary database folder.
+    
+    Args:
+        thread_id: Unique identifier for the user session
+        
+    Returns:
+        Absolute path to the temp database directory
+    """
+    root_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Fallback to system temp if project dir is read-only
+    if not os.access(root_dir, os.W_OK):
+        base_temp_dir = os.path.join(tempfile.gettempdir(), "temp_dbs")
+    else:
+        base_temp_dir = os.path.join(root_dir, "temp_dbs")
+    
+    return os.path.join(base_temp_dir, thread_id)
+
+def cleanup_old_temp_dbs(hours=4):
+    """
+    Removes temporary database folders older than specified hours.
+    This is a passive cleanup that runs on app startup and before new uploads.
+    
+    Args:
+        hours: Number of hours after which a temp DB is considered stale (default: 4)
+    """
+    root_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Determine temp_dbs location
+    if not os.access(root_dir, os.W_OK):
+        temp_dbs_dir = os.path.join(tempfile.gettempdir(), "temp_dbs")
+    else:
+        temp_dbs_dir = os.path.join(root_dir, "temp_dbs")
+    
+    # Skip if temp_dbs directory doesn't exist yet
+    if not os.path.exists(temp_dbs_dir):
+        return
+    
+    current_time = time.time()
+    cutoff_time = current_time - (hours * 3600)
+    
+    try:
+        for folder_name in os.listdir(temp_dbs_dir):
+            folder_path = os.path.join(temp_dbs_dir, folder_name)
+            
+            if os.path.isdir(folder_path):
+                # Get folder modification time
+                folder_mtime = os.path.getmtime(folder_path)
+                
+                # Delete if older than cutoff
+                if folder_mtime < cutoff_time:
+                    shutil.rmtree(folder_path)
+                    print(f"Cleaned up old temp database: {folder_path}")
+    except Exception as e:
+        print(f"Warning: Error during temp database cleanup: {e}")
 
 def update_vectorstore_from_pdf(file_path, vectorstore):
     """

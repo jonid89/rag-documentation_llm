@@ -22,13 +22,43 @@ class GraphState(TypedDict):
     Attributes:
         messages: A list of messages in the current conversation.
         context: A string representing the retrieved context.
+        db_dir: Optional path to a user-specific vectorstore database.
     """
     messages: Annotated[List[BaseMessage], add_messages]
     context: str # Store formatted context string
+    db_dir: str # User-specific database directory
 
 def format_docs(docs):
     """Helper function to combine retrieved document contents."""
     return "\n\n".join(doc.page_content for doc in docs)
+
+def get_vectorstore_for_db(db_dir):
+    """
+    Creates and returns a Chroma vectorstore for a specific database directory.
+    
+    Args:
+        db_dir: Path to the database directory
+        
+    Returns:
+        Chroma vectorstore instance
+    """
+    return Chroma(
+        persist_directory=db_dir,
+        embedding_function=embeddings
+    )
+
+def get_retriever_for_db(db_dir):
+    """
+    Creates and returns a retriever for a specific database directory.
+    
+    Args:
+        db_dir: Path to the database directory
+        
+    Returns:
+        Retriever instance configured to search the specified database
+    """
+    vs = get_vectorstore_for_db(db_dir)
+    return vs.as_retriever(search_kwargs={"k": 4})
 
 # Global initializations (or within main)
 # It's better to initialize these once.
@@ -110,27 +140,33 @@ def retrieve(state: GraphState) -> GraphState:
     """
     Retrieves documents based on the latest user question,
     potentially reformulating it using chat history.
+    Uses a user-specific retriever if db_dir is provided in state.
     """
     messages = state["messages"]
     last_message = messages[-1] # This should be the HumanMessage
+    db_dir = state.get("db_dir", "")
+    
+    # Use user-specific retriever if db_dir is provided, otherwise use the global retriever
+    current_retriever = get_retriever_for_db(db_dir) if db_dir else retriever
     
     standalone_question = history_aware_retriever_standalone.invoke({
         "input": last_message.content,
         "chat_history": messages[:-1]
     })
 
-    retrieved_documents = retriever.invoke(standalone_question)
+    retrieved_documents = current_retriever.invoke(standalone_question)
     
     # Format the retrieved documents into a single string
     formatted_context = format_docs(retrieved_documents)
     
-    # Update the state with the retrieved context
-    return {"context": formatted_context}
+    # Update the state with the retrieved context and db_dir
+    return {"context": formatted_context, "db_dir": db_dir}
 
 def generate(state: GraphState) -> GraphState:
     """Generates an answer based on the retrieved context and chat history."""
     messages = state["messages"]
     context = state["context"]
+    db_dir = state.get("db_dir", "")
     current_question = messages[-1].content
     
     answer_chain = qa_prompt | llm | StrOutputParser()
@@ -143,7 +179,7 @@ def generate(state: GraphState) -> GraphState:
     
     # Append the AI's response as an AIMessage to the state's messages list.
     # LangGraph's state updates are additive for lists.
-    return {"messages": [AIMessage(content=response_content)]}
+    return {"messages": [AIMessage(content=response_content)], "db_dir": db_dir}
 
 workflow = StateGraph(GraphState)
 workflow.add_node("retrieve", retrieve)
@@ -155,14 +191,23 @@ workflow.add_edge("generate", END)
 memory = MemorySaver()
 rag_app = workflow.compile(checkpointer=memory)
 
-def get_chatbot_response(user_input: str, thread_id: str = "default_session") -> str:
+def get_chatbot_response(user_input: str, thread_id: str = "default_session", db_dir: str = "") -> str:
     """
     Invocates the LangGraph application with a user message 
     and returns the final AI response string.
+    
+    Args:
+        user_input: The user's question
+        thread_id: Unique identifier for the conversation thread
+        db_dir: Optional path to a user-specific vectorstore database.
+                If not provided, uses the default master database.
+    
+    Returns:
+        The AI's response string
     """
     try:
         final_state = rag_app.invoke(
-            {"messages": [HumanMessage(content=user_input)]},
+            {"messages": [HumanMessage(content=user_input)], "db_dir": db_dir},
             config={"configurable": {"thread_id": thread_id}}
         )
         # Extract and return the last message content

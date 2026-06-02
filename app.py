@@ -4,12 +4,17 @@ import uuid
 import shutil
 import tempfile
 from graph_backend import get_chatbot_response, embeddings, vectorstore
-from build_db import update_vectorstore_from_pdf
+from build_db import update_vectorstore_from_pdf, get_user_temp_db_path, cleanup_old_temp_dbs
+from langchain_chroma import Chroma
 
 # 1. Page Configuration
 st.set_page_config(page_title="Valve Handbook RAG Chatbot", layout="wide")
 st.title("📚 Valve Handbook & Custom PDF Chatbot")
 st.write("Upload a PDF to build/rebuild the knowledge base, or chat with the existing database.")
+
+# 1.5. Startup Cleanup
+# Clean up old temporary databases on app startup
+cleanup_old_temp_dbs(hours=4)
 
 # 2. Session State Initialization
 if "thread_id" not in st.session_state:
@@ -17,6 +22,9 @@ if "thread_id" not in st.session_state:
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
+
+if "user_db_dir" not in st.session_state:
+    st.session_state.user_db_dir = ""  # Empty string means use default master DB
 
 # 3. Sidebar for PDF Uploads
 with st.sidebar:
@@ -26,6 +34,13 @@ with st.sidebar:
     if uploaded_file is not None:
         if st.button("Process & Rebuild Database"):
             with st.spinner("Processing PDF and updating vector store..."):
+                # Clean up before creating new user DB
+                cleanup_old_temp_dbs(hours=4)
+                
+                # Get user-specific temp database path
+                user_db_dir = get_user_temp_db_path(st.session_state.thread_id)
+                os.makedirs(user_db_dir, exist_ok=True)
+                
                 # Save uploaded file temporarily
                 # Determine writable temp directory
                 if not os.access(".", os.W_OK):
@@ -39,9 +54,19 @@ with st.sidebar:
                 with open(file_path, "wb") as f:
                     f.write(uploaded_file.getbuffer())
                 
-                # Rebuild database logic
+                # Rebuild user-specific database
                 try:
-                    num_chunks = update_vectorstore_from_pdf(file_path, vectorstore)
+                    # Create a fresh vectorstore for this user's temp DB
+                    from langchain_chroma import Chroma
+                    user_vectorstore = Chroma(
+                        persist_directory=user_db_dir,
+                        embedding_function=embeddings
+                    )
+                    
+                    num_chunks = update_vectorstore_from_pdf(file_path, user_vectorstore)
+                    
+                    # Store the user's DB path in session state
+                    st.session_state.user_db_dir = user_db_dir
                     
                     st.success(f"Successfully processed {num_chunks} chunks from '{uploaded_file.name}'!")
                     # Clear chat history for the new document context
@@ -52,6 +77,8 @@ with st.sidebar:
                         os.remove(file_path)
                 except Exception as e:
                     st.error(f"An error occurred: {e}")
+                    # Clear user_db_dir on error
+                    st.session_state.user_db_dir = ""
 
 # 4. Display Chat History
 for message in st.session_state.messages:
@@ -68,6 +95,10 @@ if user_query := st.chat_input("Ask a question about your document..."):
     # Generate and display AI response
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
-            ai_response = get_chatbot_response(user_query, thread_id=st.session_state.thread_id)
+            ai_response = get_chatbot_response(
+                user_query, 
+                thread_id=st.session_state.thread_id,
+                db_dir=st.session_state.user_db_dir
+            )
             st.markdown(ai_response)
     st.session_state.messages.append({"role": "assistant", "content": ai_response})
