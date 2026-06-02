@@ -19,7 +19,7 @@ Check out the live application running on Streamlit Community Cloud:
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your-username/rag-documentation_llm.git
+   git clone https://github.com/jonid89/rag-documentation_llm.git
    cd rag-documentation_llm
    ```
 

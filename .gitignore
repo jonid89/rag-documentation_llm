@@ -1,2 +1,11 @@
 venv/
 .env
+
+# Databases
+valve_db/
+temp_dbs/
+
+# Python caches
+__pycache__/
+*.pyc
+.DS_Store

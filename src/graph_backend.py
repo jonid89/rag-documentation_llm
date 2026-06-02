@@ -67,7 +67,11 @@ load_dotenv()
 def get_sanitized_api_key():
     """Fetch API key from Streamlit secrets or environment and sanitize it."""
     # Streamlit secrets usually take precedence in production
-    key = st.secrets.get("GOOGLE_API_KEY")
+    key = None
+    try:
+        key = st.secrets.get("GOOGLE_API_KEY")
+    except Exception:
+        pass
     
     # Fallback to .env for local development
     if not key:
@@ -82,7 +86,7 @@ def get_sanitized_api_key():
 api_key = get_sanitized_api_key()
 
 # Define an absolute path for the vectorstore to prevent "readonly" issues
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Streamlit Cloud/Restricted Windows fallback: Use system temp if project dir is read-only
 if not os.access(ROOT_DIR, os.W_OK):

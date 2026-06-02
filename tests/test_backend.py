@@ -1,4 +1,4 @@
-from graph_backend import get_chatbot_response
+from src.graph_backend import get_chatbot_response
 
 # Test message 1
 print("User: Hi, what is Valve?")

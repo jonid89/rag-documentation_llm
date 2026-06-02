@@ -20,7 +20,7 @@ def get_user_temp_db_path(thread_id):
     Returns:
         Absolute path to the temp database directory
     """
-    root_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     
     # Fallback to system temp if project dir is read-only
     if not os.access(root_dir, os.W_OK):
@@ -38,7 +38,7 @@ def cleanup_old_temp_dbs(hours=4):
     Args:
         hours: Number of hours after which a temp DB is considered stale (default: 4)
     """
-    root_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     
     # Determine temp_dbs location
     if not os.access(root_dir, os.W_OK):
@@ -101,9 +101,9 @@ def process_pdf():
     # Load environment variables from .env file
     load_dotenv()
 
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     # Define the path to the PDF file
-    file_path = "data/Valve_NewEmployeeHandbook.pdf"
-    root_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(root_dir, "data", "Valve_NewEmployeeHandbook.pdf")
     
     if not os.access(root_dir, os.W_OK):
         db_path = os.path.join(tempfile.gettempdir(), "valve_db")

@@ -3,8 +3,8 @@ import os
 import uuid
 import shutil
 import tempfile
-from graph_backend import get_chatbot_response, embeddings, vectorstore, MODEL_REGISTRY
-from build_db import update_vectorstore_from_pdf, get_user_temp_db_path, cleanup_old_temp_dbs
+from src.graph_backend import get_chatbot_response, embeddings, vectorstore, MODEL_REGISTRY
+from src.build_db import update_vectorstore_from_pdf, get_user_temp_db_path, cleanup_old_temp_dbs
 from langchain_chroma import Chroma
 
 # 1. Page Configuration
