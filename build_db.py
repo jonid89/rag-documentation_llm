@@ -1,6 +1,7 @@
 import os
 import shutil
 import streamlit as st
+import tempfile
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
@@ -43,7 +44,11 @@ def process_pdf():
     # Define the path to the PDF file
     file_path = "data/Valve_NewEmployeeHandbook.pdf"
     root_dir = os.path.dirname(os.path.abspath(__file__))
-    db_path = os.path.join(root_dir, "valve_db")
+    
+    if not os.access(root_dir, os.W_OK):
+        db_path = os.path.join(tempfile.gettempdir(), "valve_db")
+    else:
+        db_path = os.path.join(root_dir, "valve_db")
 
     # Clean existing database directory to ensure a fresh build
     if os.path.exists(db_path):

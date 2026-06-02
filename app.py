@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import uuid
 import shutil
+import tempfile
 from graph_backend import get_chatbot_response, embeddings, vectorstore
 from build_db import update_vectorstore_from_pdf
 
@@ -26,7 +27,12 @@ with st.sidebar:
         if st.button("Process & Rebuild Database"):
             with st.spinner("Processing PDF and updating vector store..."):
                 # Save uploaded file temporarily
-                temp_dir = "data"
+                # Determine writable temp directory
+                if not os.access(".", os.W_OK):
+                    temp_dir = os.path.join(tempfile.gettempdir(), "rag_uploads")
+                else:
+                    temp_dir = "data"
+                
                 os.makedirs(temp_dir, exist_ok=True)
                 file_path = os.path.join(temp_dir, uploaded_file.name)
                 

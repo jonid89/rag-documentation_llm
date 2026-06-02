@@ -1,5 +1,6 @@
 import os
 import streamlit as st
+import tempfile
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
@@ -52,7 +53,13 @@ api_key = get_sanitized_api_key()
 
 # Define an absolute path for the vectorstore to prevent "readonly" issues
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_DIR = os.path.join(ROOT_DIR, "valve_db")
+
+# Streamlit Cloud/Restricted Windows fallback: Use system temp if project dir is read-only
+if not os.access(ROOT_DIR, os.W_OK):
+    DB_DIR = os.path.join(tempfile.gettempdir(), "valve_db")
+else:
+    DB_DIR = os.path.join(ROOT_DIR, "valve_db")
+
 
 # For the backend, we use retrieval_query because its main job is to 
 # embed user questions for the retriever.
