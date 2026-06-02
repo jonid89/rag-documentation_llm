@@ -42,7 +42,8 @@ def process_pdf():
 
     # Define the path to the PDF file
     file_path = "data/Valve_NewEmployeeHandbook.pdf"
-    db_path = "./valve_db"
+    root_dir = os.path.dirname(os.path.abspath(__file__))
+    db_path = os.path.join(root_dir, "valve_db")
 
     # Clean existing database directory to ensure a fresh build
     if os.path.exists(db_path):

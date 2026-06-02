@@ -50,6 +50,10 @@ def get_sanitized_api_key():
 
 api_key = get_sanitized_api_key()
 
+# Define an absolute path for the vectorstore to prevent "readonly" issues
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_DIR = os.path.join(ROOT_DIR, "valve_db")
+
 # For the backend, we use retrieval_query because its main job is to 
 # embed user questions for the retriever.
 embeddings = GoogleGenerativeAIEmbeddings(
@@ -59,7 +63,7 @@ embeddings = GoogleGenerativeAIEmbeddings(
 )
 
 vectorstore = Chroma(
-    persist_directory="./valve_db",
+    persist_directory=DB_DIR,
     embedding_function=embeddings
 )
 llm = ChatGoogleGenerativeAI(model="gemini-flash-latest", temperature=0, google_api_key=api_key)

@@ -34,7 +34,6 @@ with st.sidebar:
                     f.write(uploaded_file.getbuffer())
                 
                 # Rebuild database logic
-                db_path = "./valve_db"
                 try:
                     num_chunks = update_vectorstore_from_pdf(file_path, vectorstore)
                     
