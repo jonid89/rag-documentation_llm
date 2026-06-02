@@ -48,7 +48,7 @@ with st.sidebar:
     
     st.divider()
     
-    uploaded_file = st.file_uploader("Upload a new PDF document", type=["pdf"])
+    uploaded_file = st.file_uploader("Upload a new PDF document", type=["pdf"], max_upload_size_mb=50)
     
     if uploaded_file is not None:
         # Check file size
