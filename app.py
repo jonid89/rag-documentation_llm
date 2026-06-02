@@ -16,10 +16,6 @@ st.write("Ask questions about your document. You can upload a PDF to build/rebui
 # Clean up old temporary databases on app startup
 cleanup_old_temp_dbs(hours=2)
 
-# 1.6. File Size Limit
-MAX_FILE_SIZE_MB = 50
-MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
-
 # 2. Session State Initialization
 if "thread_id" not in st.session_state:
     st.session_state.thread_id = str(uuid.uuid4())
@@ -49,10 +45,7 @@ with st.sidebar:
     uploaded_file = st.file_uploader("Upload a new PDF document", type=["pdf"])
     
     if uploaded_file is not None:
-        # Check file size
-        if uploaded_file.size > MAX_FILE_SIZE_BYTES:
-            st.error(f"❌ File too large! Maximum size is {MAX_FILE_SIZE_MB}MB. Your file is {uploaded_file.size / (1024 * 1024):.1f}MB.")
-        elif st.button("Process & Rebuild Database"):
+        if st.button("Process & Rebuild Database"):
             with st.spinner("Processing PDF and updating vector store..."):
                 # Clean up before creating new user DB
                 cleanup_old_temp_dbs(hours=2)
