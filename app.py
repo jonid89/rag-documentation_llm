@@ -9,8 +9,8 @@ from langchain_chroma import Chroma
 
 # 1. Page Configuration
 st.set_page_config(page_title="Valve Handbook RAG Chatbot", layout="wide")
-st.title("📚 Valve Handbook & Custom PDF Chatbot")
-st.write("Upload a PDF to build/rebuild the knowledge base, or chat with the existing database.")
+st.title("� Ask the Chatbot")
+st.write("Ask questions about your document. You can upload a PDF to build/rebuild the knowledge base, or chat with the existing database.")
 
 # 1.5. Startup Cleanup
 # Clean up old temporary databases on app startup
@@ -33,20 +33,18 @@ if "user_db_dir" not in st.session_state:
 if "selected_model" not in st.session_state:
     st.session_state.selected_model = "Gemini 3.1 Flash Lite"  # Default to Gemini 3.1 Flash Lite
 
+if "current_document" not in st.session_state:
+    st.session_state.current_document = "Valve Handbook (Default)"  # Default document name
+
 # 3. Sidebar for PDF Uploads and Model Selection
 with st.sidebar:
-    st.header("Document Settings")
+    st.header("Settings")
     
-    # Model selection dropdown
-    st.subheader("LLM Model")
-    st.session_state.selected_model = st.selectbox(
-        "Choose a model:",
-        options=list(MODEL_REGISTRY.keys()),
-        index=list(MODEL_REGISTRY.keys()).index(st.session_state.selected_model),
-        help="Select which Gemini model to use for responses"
-    )
+    # Document Upload Section
+    st.subheader("📄 Upload Document")
     
-    st.divider()
+    # Show current document
+    st.caption(f"Currently using: **{st.session_state.current_document}**")
     
     uploaded_file = st.file_uploader("Upload a new PDF document", type=["pdf"])
     
@@ -87,8 +85,9 @@ with st.sidebar:
                     
                     num_chunks = update_vectorstore_from_pdf(file_path, user_vectorstore)
                     
-                    # Store the user's DB path in session state
+                    # Store the user's DB path and document name in session state
                     st.session_state.user_db_dir = user_db_dir
+                    st.session_state.current_document = uploaded_file.name
                     
                     st.success(f"Successfully processed {num_chunks} chunks from '{uploaded_file.name}'!")
                     # Clear chat history for the new document context
@@ -101,6 +100,17 @@ with st.sidebar:
                     st.error(f"An error occurred: {e}")
                     # Clear user_db_dir on error
                     st.session_state.user_db_dir = ""
+    
+    st.divider()
+    
+    # Model selection dropdown
+    st.subheader("🤖 LLM Model")
+    st.session_state.selected_model = st.selectbox(
+        "Choose a model:",
+        options=list(MODEL_REGISTRY.keys()),
+        index=list(MODEL_REGISTRY.keys()).index(st.session_state.selected_model),
+        help="Select which Gemini model to use for responses"
+    )
 
 # 4. Display Chat History
 for message in st.session_state.messages:
