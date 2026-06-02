@@ -3,7 +3,7 @@ import os
 import uuid
 import shutil
 import tempfile
-from graph_backend import get_chatbot_response, embeddings, vectorstore
+from graph_backend import get_chatbot_response, embeddings, vectorstore, MODEL_REGISTRY
 from build_db import update_vectorstore_from_pdf, get_user_temp_db_path, cleanup_old_temp_dbs
 from langchain_chroma import Chroma
 
@@ -26,9 +26,24 @@ if "messages" not in st.session_state:
 if "user_db_dir" not in st.session_state:
     st.session_state.user_db_dir = ""  # Empty string means use default master DB
 
-# 3. Sidebar for PDF Uploads
+if "selected_model" not in st.session_state:
+    st.session_state.selected_model = list(MODEL_REGISTRY.keys())[0]  # Default to first model
+
+# 3. Sidebar for PDF Uploads and Model Selection
 with st.sidebar:
     st.header("Document Settings")
+    
+    # Model selection dropdown
+    st.subheader("LLM Model")
+    st.session_state.selected_model = st.selectbox(
+        "Choose a model:",
+        options=list(MODEL_REGISTRY.keys()),
+        index=list(MODEL_REGISTRY.keys()).index(st.session_state.selected_model),
+        help="Select which Gemini model to use for responses"
+    )
+    
+    st.divider()
+    
     uploaded_file = st.file_uploader("Upload a new PDF document", type=["pdf"])
     
     if uploaded_file is not None:
@@ -98,7 +113,8 @@ if user_query := st.chat_input("Ask a question about your document..."):
             ai_response = get_chatbot_response(
                 user_query, 
                 thread_id=st.session_state.thread_id,
-                db_dir=st.session_state.user_db_dir
+                db_dir=st.session_state.user_db_dir,
+                model=st.session_state.selected_model
             )
             st.markdown(ai_response)
     st.session_state.messages.append({"role": "assistant", "content": ai_response})

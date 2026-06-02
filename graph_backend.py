@@ -103,8 +103,72 @@ vectorstore = Chroma(
     persist_directory=DB_DIR,
     embedding_function=embeddings
 )
-llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-lite", temperature=0, google_api_key=api_key)
+llm = ChatGoogleGenerativeAI(model="gemini-3-flash", temperature=0, google_api_key=api_key)
 retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
+
+# Model registry for user-friendly names to API model names
+MODEL_REGISTRY = {
+    "Gemini 3 Flash": "gemini-3-flash",
+    "Gemini 3.1 Flash Lite": "gemini-3.1-flash-lite",
+    "Gemini 3.5 Flash": "gemini-3.5-flash",
+    "Gemini 2.5 Flash Lite": "gemini-2.5-flash-lite",
+    "Gemini 2.5 Flash": "gemini-2.5-flash",
+}
+
+def create_workflow(model_llm):
+    """
+    Creates a RAG workflow with the specified LLM.
+    
+    Args:
+        model_llm: ChatGoogleGenerativeAI instance to use for the workflow
+        
+    Returns:
+        Compiled LangGraph workflow
+    """
+    contextualize_chain = contextualize_q_prompt | model_llm | StrOutputParser()
+    
+    def retrieve(state: GraphState) -> GraphState:
+        messages = state["messages"]
+        last_message = messages[-1]
+        db_dir = state.get("db_dir", "")
+        
+        current_retriever = get_retriever_for_db(db_dir) if db_dir else retriever
+        
+        standalone_question = contextualize_chain.invoke({
+            "input": last_message.content,
+            "chat_history": messages[:-1]
+        })
+
+        retrieved_documents = current_retriever.invoke(standalone_question)
+        formatted_context = format_docs(retrieved_documents)
+        
+        return {"context": formatted_context, "db_dir": db_dir}
+
+    def generate(state: GraphState) -> GraphState:
+        messages = state["messages"]
+        context = state["context"]
+        db_dir = state.get("db_dir", "")
+        current_question = messages[-1].content
+        
+        answer_chain = qa_prompt | model_llm | StrOutputParser()
+        
+        response_content = answer_chain.invoke({
+            "context": context,
+            "chat_history": messages[:-1],
+            "input": current_question
+        })
+        
+        return {"messages": [AIMessage(content=response_content)], "db_dir": db_dir}
+
+    workflow = StateGraph(GraphState)
+    workflow.add_node("retrieve", retrieve)
+    workflow.add_node("generate", generate)
+    workflow.set_entry_point("retrieve")
+    workflow.add_edge("retrieve", "generate")
+    workflow.add_edge("generate", END)
+
+    memory = MemorySaver()
+    return workflow.compile(checkpointer=memory)
 
 # Prompts
 contextualize_q_system_prompt = (
@@ -132,66 +196,13 @@ qa_prompt = ChatPromptTemplate.from_messages([
     ("human", "{input}"),
 ])
 
-# Sub-chain for history-aware retrieval
+# Sub-chain for history-aware retrieval (used as fallback)
 history_aware_retriever_standalone = contextualize_q_prompt | llm | StrOutputParser()
 
-# 2. Define Nodes
-def retrieve(state: GraphState) -> GraphState:
-    """
-    Retrieves documents based on the latest user question,
-    potentially reformulating it using chat history.
-    Uses a user-specific retriever if db_dir is provided in state.
-    """
-    messages = state["messages"]
-    last_message = messages[-1] # This should be the HumanMessage
-    db_dir = state.get("db_dir", "")
-    
-    # Use user-specific retriever if db_dir is provided, otherwise use the global retriever
-    current_retriever = get_retriever_for_db(db_dir) if db_dir else retriever
-    
-    standalone_question = history_aware_retriever_standalone.invoke({
-        "input": last_message.content,
-        "chat_history": messages[:-1]
-    })
+# Default workflow using the default LLM
+rag_app = create_workflow(llm)
 
-    retrieved_documents = current_retriever.invoke(standalone_question)
-    
-    # Format the retrieved documents into a single string
-    formatted_context = format_docs(retrieved_documents)
-    
-    # Update the state with the retrieved context and db_dir
-    return {"context": formatted_context, "db_dir": db_dir}
-
-def generate(state: GraphState) -> GraphState:
-    """Generates an answer based on the retrieved context and chat history."""
-    messages = state["messages"]
-    context = state["context"]
-    db_dir = state.get("db_dir", "")
-    current_question = messages[-1].content
-    
-    answer_chain = qa_prompt | llm | StrOutputParser()
-    
-    response_content = answer_chain.invoke({
-        "context": context,
-        "chat_history": messages[:-1], # Previous messages
-        "input": current_question # Current user question
-    })
-    
-    # Append the AI's response as an AIMessage to the state's messages list.
-    # LangGraph's state updates are additive for lists.
-    return {"messages": [AIMessage(content=response_content)], "db_dir": db_dir}
-
-workflow = StateGraph(GraphState)
-workflow.add_node("retrieve", retrieve)
-workflow.add_node("generate", generate)
-workflow.set_entry_point("retrieve")
-workflow.add_edge("retrieve", "generate")
-workflow.add_edge("generate", END)
-
-memory = MemorySaver()
-rag_app = workflow.compile(checkpointer=memory)
-
-def get_chatbot_response(user_input: str, thread_id: str = "default_session", db_dir: str = "") -> str:
+def get_chatbot_response(user_input: str, thread_id: str = "default_session", db_dir: str = "", model: str = "") -> str:
     """
     Invocates the LangGraph application with a user message 
     and returns the final AI response string.
@@ -201,12 +212,29 @@ def get_chatbot_response(user_input: str, thread_id: str = "default_session", db
         thread_id: Unique identifier for the conversation thread
         db_dir: Optional path to a user-specific vectorstore database.
                 If not provided, uses the default master database.
+        model: Optional model name (display name from MODEL_REGISTRY).
+               If provided, creates a workflow with that model.
+               If not provided, uses the default LLM.
     
     Returns:
         The AI's response string
     """
     try:
-        final_state = rag_app.invoke(
+        # Determine which app to use
+        if model and model in MODEL_REGISTRY:
+            # Create a temporary LLM and workflow for the selected model
+            model_api_name = MODEL_REGISTRY[model]
+            current_llm = ChatGoogleGenerativeAI(
+                model=model_api_name,
+                temperature=0,
+                google_api_key=api_key
+            )
+            app = create_workflow(current_llm)
+        else:
+            # Use the default app
+            app = rag_app
+        
+        final_state = app.invoke(
             {"messages": [HumanMessage(content=user_input)], "db_dir": db_dir},
             config={"configurable": {"thread_id": thread_id}}
         )
