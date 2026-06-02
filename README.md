@@ -1,6 +1,6 @@
 # Valve Handbook RAG Chatbot
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://your-app-url.streamlit.app/)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://rag-documentationllm-ojlywb8tzrbnag7cavasq5.streamlit.app/)
 
 A Retrieval-Augmented Generation (RAG) chatbot application built with Streamlit, LangGraph, and Google Gemini. This application allows users to ask questions about a provided document (defaulting to the Valve New Employee Handbook) or upload their own PDF documents to dynamically build a knowledge base and chat with their data.
 
@@ -23,13 +23,19 @@ Check out the live application running on Streamlit Community Cloud:
    cd rag-documentation_llm
    ```
 
-2. **Configure Environment Variables:**
+2. **Install Dependencies:**
+   Install the required Python packages using pip:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Configure Environment Variables:**
    Create a `.env` file in the root directory and add your Google API key:
    ```env
    GOOGLE_API_KEY=your_google_api_key_here
    ```
 
-3. **Run the Application:**
+4. **Run the Application:**
    ```bash
    streamlit run app.py
    ```
