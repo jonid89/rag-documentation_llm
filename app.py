@@ -42,6 +42,9 @@ with st.sidebar:
                     # Clear chat history for the new document context
                     st.session_state.messages = []
                     st.session_state.thread_id = str(uuid.uuid4())
+                    
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
                 except Exception as e:
                     st.error(f"An error occurred: {e}")
 
