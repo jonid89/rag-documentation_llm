@@ -1,6 +1,6 @@
 # Valve Handbook RAG Chatbot
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://rag-documentationllm-ojlywb8tzrbnag7cavasq5.streamlit.app/)
+[![Streamlit App](https://img.shields.io/badge/Streamlit-FF4B4B.svg?style=flat&logo=Streamlit&logoColor=white)](https://rag-documentationllm-ojlywb8tzrbnag7cavasq5.streamlit.app/)
 
 A Retrieval-Augmented Generation (RAG) chatbot application built with Streamlit, LangGraph, and Google Gemini. This application allows users to ask questions about a provided document (defaulting to the Valve New Employee Handbook) or upload their own PDF documents to dynamically build a knowledge base and chat with their data.
 
