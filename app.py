@@ -27,7 +27,7 @@ if "user_db_dir" not in st.session_state:
     st.session_state.user_db_dir = ""  # Empty string means use default master DB
 
 if "selected_model" not in st.session_state:
-    st.session_state.selected_model = list(MODEL_REGISTRY.keys())[0]  # Default to first model
+    st.session_state.selected_model = "Gemini 3.1 Flash Lite"  # Default to Gemini 3.1 Flash Lite
 
 # 3. Sidebar for PDF Uploads and Model Selection
 with st.sidebar:
