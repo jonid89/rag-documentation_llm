@@ -103,7 +103,7 @@ vectorstore = Chroma(
     persist_directory=DB_DIR,
     embedding_function=embeddings
 )
-llm = ChatGoogleGenerativeAI(model="gemini-3-flash", temperature=0, google_api_key=api_key)
+llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", temperature=0, google_api_key=api_key)
 retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
 
 # Model registry for user-friendly names to API model names
