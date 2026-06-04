@@ -1,4 +1,4 @@
-# Valve Handbook RAG Chatbot
+# Handbook RAG Chatbot
 
 [![Streamlit App](https://img.shields.io/badge/Streamlit-FF4B4B.svg?style=flat&logo=Streamlit&logoColor=white)](https://rag-documentationllm-ojlywb8tzrbnag7cavasq5.streamlit.app/)
 
